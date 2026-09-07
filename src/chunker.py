@@ -1,22 +1,17 @@
-from typing import List, Dict
-
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from document_loader import load_pdf_documents
+from src.document_loader import load_pdf_documents
 
 
-def chunk_documents(
-    documents: List[Dict],
-    chunk_size: int = 700,
-    chunk_overlap: int = 100,
-):
+def chunk_documents(documents):
     """
-    Split extracted documents into smaller searchable chunks.
+    Split loaded aviation documents into smaller chunks
+    for semantic retrieval.
     """
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=700,
+        chunk_overlap=100,
         separators=[
             "\n\n",
             "\n",
@@ -28,16 +23,19 @@ def chunk_documents(
     chunks = []
 
     for document in documents:
+        text = document["text"]
+        source = document["source"]
+        page = document["page"]
 
-        split_texts = splitter.split_text(document["text"])
+        split_texts = text_splitter.split_text(text)
 
-        for index, text in enumerate(split_texts):
+        for index, chunk_text in enumerate(split_texts):
 
             chunks.append(
                 {
-                    "text": text,
-                    "source": document["source"],
-                    "page": document["page"],
+                    "text": chunk_text,
+                    "source": source,
+                    "page": page,
                     "chunk_id": index,
                 }
             )
@@ -47,19 +45,23 @@ def chunk_documents(
 
 if __name__ == "__main__":
 
+    print("Loading aviation documents...")
+
     documents = load_pdf_documents()
+
+    print(f"Loaded {len(documents)} pages.")
+
+    print("\nCreating chunks...")
 
     chunks = chunk_documents(documents)
 
-    print(f"\nDocuments/pages loaded: {len(documents)}")
-    print(f"Chunks created: {len(chunks)}\n")
+    print(f"Created {len(chunks)} chunks.")
 
-    for chunk in chunks[:5]:
+    print("\nFirst chunk:")
+    print(chunks[0]["text"])
 
-        print("=" * 70)
-        print(f"Source: {chunk['source']}")
-        print(f"Page: {chunk['page']}")
-        print(f"Chunk: {chunk['chunk_id']}")
-        print("-" * 70)
-        print(chunk["text"])
-        print()
+    print("\nSource:")
+    print(chunks[0]["source"])
+
+    print("\nPage:")
+    print(chunks[0]["page"])
