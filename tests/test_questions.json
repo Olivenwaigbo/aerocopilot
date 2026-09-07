@@ -1,0 +1,50 @@
+[
+  {
+    "id": "Q001",
+    "question": "What should be checked during a hydraulic system inspection?",
+    "expected_source": "aero100_inspection_manual.pdf",
+    "should_abstain": false
+  },
+  {
+    "id": "Q002",
+    "question": "What should happen when hydraulic fluid leakage is identified?",
+    "expected_source": "aero100_maintenance_manual.pdf",
+    "should_abstain": false
+  },
+  {
+    "id": "Q003",
+    "question": "What should a safety risk assessment consider?",
+    "expected_source": "aero100_safety_procedures.pdf",
+    "should_abstain": false
+  },
+  {
+    "id": "Q004",
+    "question": "What should flight crew do when an abnormal aircraft condition occurs?",
+    "expected_source": "aero100_operations_manual.pdf",
+    "should_abstain": false
+  },
+  {
+    "id": "Q005",
+    "question": "What is the maximum cruise speed of the AERO-100?",
+    "expected_source": "",
+    "should_abstain": true
+  },
+  {
+    "id": "Q006",
+    "question": "What is the recommended tire pressure for the AERO-100?",
+    "expected_source": "",
+    "should_abstain": true
+  },
+  {
+    "id": "Q007",
+    "question": "What personal protective equipment is required during maintenance?",
+    "expected_source": "aero100_safety_procedures.pdf",
+    "should_abstain": false
+  },
+  {
+    "id": "Q008",
+    "question": "What should be inspected during a visual inspection?",
+    "expected_source": "aero100_inspection_manual.pdf",
+    "should_abstain": false
+  }
+]
