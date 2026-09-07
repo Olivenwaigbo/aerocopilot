@@ -13,7 +13,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+
+# =========================================================
+# IMPORT RAG COMPONENTS
+# =========================================================
+
 from src.rag_chain import ask_aerocopilot
+from src.vector_store import get_vector_store
 
 
 # =========================================================
@@ -37,16 +43,46 @@ if "messages" not in st.session_state:
 
 
 # =========================================================
+# INITIALIZE VECTOR STORE
+# =========================================================
+
+@st.cache_resource
+def initialize_aerocopilot():
+    """
+    Initialize the AeroCopilot vector store.
+
+    On a fresh Streamlit deployment, ChromaDB may not yet exist.
+    get_vector_store() automatically builds it from the aviation
+    documents when the collection is empty.
+    """
+
+    vector_store = get_vector_store()
+
+    try:
+        document_count = vector_store._collection.count()
+    except Exception:
+        document_count = 0
+
+    return vector_store, document_count
+
+
+try:
+    vector_store, vector_count = initialize_aerocopilot()
+    rag_ready = vector_count > 0
+except Exception as error:
+    vector_store = None
+    vector_count = 0
+    rag_ready = False
+    rag_error = error
+
+
+# =========================================================
 # CUSTOM CSS
 # =========================================================
 
 st.markdown(
     """
     <style>
-
-    /* -------------------------------------------------
-       GLOBAL
-    ------------------------------------------------- */
 
     .stApp {
         background: #FFFFFF;
@@ -58,14 +94,9 @@ st.markdown(
         padding-bottom: 6rem;
     }
 
-    /* Hide Streamlit's default top decoration */
     [data-testid="stDecoration"] {
         display: none;
     }
-
-    /* -------------------------------------------------
-       SIDEBAR
-    ------------------------------------------------- */
 
     [data-testid="stSidebar"] {
         background: #F7F6F2;
@@ -122,9 +153,22 @@ st.markdown(
         display: inline-block;
     }
 
-    /* -------------------------------------------------
-       HERO
-    ------------------------------------------------- */
+    .system-warning {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #8a6200;
+    }
+
+    .warning-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d99a00;
+        display: inline-block;
+    }
 
     .eyebrow {
         color: #7c4dff;
@@ -153,13 +197,6 @@ st.markdown(
         margin-bottom: 2rem;
     }
 
-
-    
-
-    /* -------------------------------------------------
-       CHAT
-    ------------------------------------------------- */
-
     [data-testid="stChatMessage"] {
         border-radius: 16px;
         margin-bottom: 1rem;
@@ -169,10 +206,6 @@ st.markdown(
         font-size: 0.95rem;
         line-height: 1.65;
     }
-
-    /* -------------------------------------------------
-       CITATIONS
-    ------------------------------------------------- */
 
     .sources-label {
         color: #7c4dff;
@@ -199,30 +232,11 @@ st.markdown(
         color: #333;
     }
 
-    /* -------------------------------------------------
-       EVIDENCE
-    ------------------------------------------------- */
-
     .evidence-text {
         font-size: 0.82rem;
         line-height: 1.6;
         color: #555;
     }
-
-    /* -------------------------------------------------
-       EXAMPLE QUESTIONS
-    ------------------------------------------------- */
-
-    .examples-label {
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: #777;
-        margin-bottom: 0.4rem;
-    }
-
-    /* -------------------------------------------------
-       FOOTER
-    ------------------------------------------------- */
 
     .footer {
         text-align: center;
@@ -258,6 +272,10 @@ with st.sidebar:
 
     st.divider()
 
+    # -----------------------------------------------------
+    # KNOWLEDGE BASE
+    # -----------------------------------------------------
+
     st.markdown(
         '<div class="sidebar-section">Knowledge Base</div>',
         unsafe_allow_html=True,
@@ -268,7 +286,9 @@ with st.sidebar:
     documents = []
 
     if documents_path.exists():
-        documents = sorted(documents_path.glob("*.pdf"))
+        documents = sorted(
+            documents_path.glob("*.pdf")
+        )
 
     st.metric(
         "Documents",
@@ -276,6 +296,7 @@ with st.sidebar:
     )
 
     for document in documents:
+
         st.markdown(
             f"""
             <div class="document-item">
@@ -285,25 +306,56 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
+    # -----------------------------------------------------
+    # SYSTEM STATUS
+    # -----------------------------------------------------
+
     st.markdown(
         '<div class="sidebar-section">System</div>',
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """
-        <div class="system-online">
-            <span class="online-dot"></span>
-            RAG engine online
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if rag_ready:
+
+        st.markdown(
+            """
+            <div class="system-online">
+                <span class="online-dot"></span>
+                RAG engine online
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.caption(
+            f"Vector store: {vector_count} chunks"
+        )
+
+    else:
+
+        st.markdown(
+            """
+            <div class="system-warning">
+                <span class="warning-dot"></span>
+                RAG engine unavailable
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if "rag_error" in locals():
+            st.caption(
+                "Vector store initialization failed."
+            )
 
     st.caption("Semantic retrieval")
     st.caption("Grounded generation")
     st.caption("Source citations")
     st.caption("Abstention enabled")
+
+    # -----------------------------------------------------
+    # CONVERSATION
+    # -----------------------------------------------------
 
     st.markdown(
         '<div class="sidebar-section">Conversation</div>',
@@ -314,7 +366,9 @@ with st.sidebar:
         "＋ New conversation",
         use_container_width=True,
     ):
+
         st.session_state.messages = []
+
         st.rerun()
 
     st.divider()
@@ -353,10 +407,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# =========================================================
-# EMPTY STATE
-# =========================================================
 
 # =========================================================
 # EMPTY STATE
@@ -404,7 +454,9 @@ if not st.session_state.messages:
             ):
 
                 st.session_state.pending_question = example
+
                 st.rerun()
+
 
 # =========================================================
 # DISPLAY CONVERSATION
@@ -420,10 +472,6 @@ for message in st.session_state.messages:
     ):
 
         st.markdown(message["content"])
-
-        # ---------------------------------------------
-        # SOURCES
-        # ---------------------------------------------
 
         if role == "assistant":
 
@@ -459,6 +507,7 @@ for message in st.session_state.messages:
                     score_text = ""
 
                     if score is not None:
+
                         score_text = (
                             f" · score {score}"
                         )
@@ -521,53 +570,56 @@ pending_question = st.session_state.pop(
 # CHAT INPUT
 # =========================================================
 
-prompt = st.chat_input(
+chat_prompt = st.chat_input(
     "Ask a follow-up question..."
 )
 
 if pending_question:
-    prompt = pending_question
+
+    chat_prompt = pending_question
 
 
 # =========================================================
 # PROCESS QUESTION
 # =========================================================
 
-if prompt:
+if chat_prompt:
 
-    prompt = prompt.strip()
+    chat_prompt = chat_prompt.strip()
 
-    if prompt:
+    if chat_prompt:
 
-        # ---------------------------------------------
+        # -----------------------------------------------
         # ADD USER MESSAGE
-        # ---------------------------------------------
+        # -----------------------------------------------
 
         st.session_state.messages.append(
             {
                 "role": "user",
-                "content": prompt,
+                "content": chat_prompt,
             }
         )
 
-        # ---------------------------------------------
-        # SHOW USER MESSAGE IMMEDIATELY
-        # ---------------------------------------------
+        # -----------------------------------------------
+        # SHOW USER MESSAGE
+        # -----------------------------------------------
 
         with st.chat_message(
             "user",
             avatar="👤",
         ):
 
-            st.markdown(prompt)
+            st.markdown(chat_prompt)
 
-        # ---------------------------------------------
-        # PREPARE CONTEXT FOR FOLLOW-UP
-        # ---------------------------------------------
+        # -----------------------------------------------
+        # PREPARE CONVERSATION CONTEXT
+        # -----------------------------------------------
 
-        previous_messages = st.session_state.messages[:-1]
+        previous_messages = (
+            st.session_state.messages[:-1]
+        )
 
-        context = ""
+        conversation_context = ""
 
         if previous_messages:
 
@@ -582,33 +634,37 @@ if prompt:
                     f"{message['content']}"
                 )
 
-            context = "\n".join(context_parts)
+            conversation_context = "\n".join(
+                context_parts
+            )
 
-        # ---------------------------------------------
-        # CREATE SEARCH QUESTION
-        # ---------------------------------------------
+        # -----------------------------------------------
+        # SEARCH QUESTION
+        # -----------------------------------------------
 
-        search_question = prompt
+        search_question = chat_prompt
 
-        if context:
+        if conversation_context:
 
             search_question = f"""
 Conversation history:
 
-{context}
+{conversation_context}
 
 Current user question:
 
-{prompt}
+{chat_prompt}
 
 Use the conversation history only to understand
-what the user is referring to. Answer the current
-question using the retrieved AeroCopilot documents.
+what the user is referring to.
+
+Answer the current question using ONLY the
+retrieved AeroCopilot documents.
 """.strip()
 
-        # ---------------------------------------------
-        # CALL RAG ENGINE
-        # ---------------------------------------------
+        # -----------------------------------------------
+        # RAG ENGINE
+        # -----------------------------------------------
 
         with st.chat_message(
             "assistant",
@@ -620,6 +676,13 @@ question using the retrieved AeroCopilot documents.
             ):
 
                 try:
+
+                    if not rag_ready:
+
+                        raise RuntimeError(
+                            "The AeroCopilot vector store "
+                            "is not available."
+                        )
 
                     result = ask_aerocopilot(
                         search_question,
@@ -641,11 +704,15 @@ question using the retrieved AeroCopilot documents.
                         [],
                     )
 
+                    # -----------------------------------
+                    # ANSWER
+                    # -----------------------------------
+
                     st.markdown(answer)
 
-                    # ---------------------------------
+                    # -----------------------------------
                     # SOURCES
-                    # ---------------------------------
+                    # -----------------------------------
 
                     if citations:
 
@@ -676,6 +743,7 @@ question using the retrieved AeroCopilot documents.
                             score_text = ""
 
                             if score is not None:
+
                                 score_text = (
                                     f" · score {score}"
                                 )
@@ -694,9 +762,9 @@ question using the retrieved AeroCopilot documents.
                                 unsafe_allow_html=True,
                             )
 
-                    # ---------------------------------
+                    # -----------------------------------
                     # EVIDENCE
-                    # ---------------------------------
+                    # -----------------------------------
 
                     if retrieved_documents:
 
@@ -722,9 +790,9 @@ question using the retrieved AeroCopilot documents.
                                     unsafe_allow_html=True,
                                 )
 
-                    # ---------------------------------
-                    # SAVE ASSISTANT MESSAGE
-                    # ---------------------------------
+                    # -----------------------------------
+                    # SAVE RESPONSE
+                    # -----------------------------------
 
                     st.session_state.messages.append(
                         {
@@ -744,6 +812,7 @@ question using the retrieved AeroCopilot documents.
                     )
 
                     st.error(error_message)
+
                     st.exception(error)
 
                     st.session_state.messages.append(
